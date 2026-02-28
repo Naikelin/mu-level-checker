@@ -1,0 +1,12 @@
+name = "mu-level-checker"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Cron trigger - ejecutar cada 10 minutos
+[triggers]
+crons = ["*/10 * * * *"]
+
+# Variables de entorno (configurar con wrangler secret put)
+# Ejecutar estos comandos para configurar:
+# wrangler secret put MU_USERNAME
+# wrangler secret put MU_PASSWORD
