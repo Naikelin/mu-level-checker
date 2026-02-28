@@ -1,6 +1,6 @@
 /**
- * MU Origen Level Checker - Cloudflare Worker
- * Se ejecuta cada 10 minutos automáticamente
+ * MU Origen Level Checker - Discord Bot
+ * Se ejecuta cada 10 minutos y envía notificaciones a Discord
  */
 
 export default {
@@ -9,6 +9,16 @@ export default {
    */
   async fetch(request, env) {
     const result = await checkMULevel(env.MU_USERNAME, env.MU_PASSWORD);
+    
+    // Opción para forzar el envío de notificación (para testing)
+    const url = new URL(request.url);
+    const forceNotify = url.searchParams.get('force') === 'true';
+    
+    if (result.success && env.DISCORD_WEBHOOK_URL) {
+      if (forceNotify || result.level >= 400) {
+        await sendDiscordLevel400Notification(env.DISCORD_WEBHOOK_URL, result);
+      }
+    }
     
     return new Response(JSON.stringify(result, null, 2), {
       headers: {
@@ -26,15 +36,35 @@ export default {
     
     console.log('MU Level Check Result:', JSON.stringify(result, null, 2));
     
-    // Aquí puedes agregar lógica adicional como:
-    // - Guardar en KV storage para mantener histórico
-    // - Enviar notificación si el nivel cambió
-    // - Enviar a webhook/Discord/Telegram
-    
     if (result.success) {
       console.log(`✅ Personaje: ${result.character}, Nivel: ${result.level}, Master Resets: ${result.master_resets}`);
+      
+      // Verificar si el personaje llegó a nivel 400
+      if (result.level >= 400) {
+        // Obtener el estado previo para ver si ya enviamos la notificación
+        const previousData = await env.MU_STORAGE?.get('character_data', { type: 'json' });
+        
+        // Solo enviar si es la primera vez que alcanza nivel 400 o más
+        // o si el nivel previo era menor a 400
+        if (!previousData || previousData.level < 400) {
+          if (env.DISCORD_WEBHOOK_URL) {
+            await sendDiscordLevel400Notification(env.DISCORD_WEBHOOK_URL, result);
+            console.log('🎉 ¡Notificación de nivel 400 enviada a Discord!');
+          }
+        }
+      }
+      
+      // Guardar datos actuales para la próxima comparación
+      if (env.MU_STORAGE) {
+        await env.MU_STORAGE.put('character_data', JSON.stringify(result));
+      }
     } else {
       console.error(`❌ Error: ${result.error}`);
+      
+      // Opcional: Enviar error a Discord
+      if (env.DISCORD_WEBHOOK_URL) {
+        await sendDiscordError(env.DISCORD_WEBHOOK_URL, result.error);
+      }
     }
   },
 };
@@ -156,5 +186,105 @@ async function checkMULevel(username, password) {
       success: false,
       error: error.message,
     };
+  }
+}
+
+/**
+ * Envía una notificación especial a Discord cuando el personaje alcanza nivel 400
+ */
+async function sendDiscordLevel400Notification(webhookUrl, data) {
+  const embed = {
+    title: '🎉🎊 ¡NIVEL 400 ALCANZADO! 🎊🎉',
+    description: `**${data.character}** ha llegado al nivel **400**!\n\n` +
+                 `¡Felicitaciones por este increíble logro! 🏆`,
+    color: 0xFFD700, // Dorado
+    fields: [
+      {
+        name: '👤 Personaje',
+        value: data.character,
+        inline: true,
+      },
+      {
+        name: '⚡ Nivel',
+        value: `**${data.level}** ✨`,
+        inline: true,
+      },
+      {
+        name: '🔄 Master Resets',
+        value: `${data.master_resets}`,
+        inline: true,
+      },
+      {
+        name: '💰 Zen',
+        value: data.zen,
+        inline: false,
+      },
+    ],
+    thumbnail: {
+      url: 'https://origen.enterprise.net.ar/templates/arena/img/white-logo.png',
+    },
+    timestamp: data.timestamp,
+    footer: {
+      text: 'MU Origen Level Checker',
+      icon_url: 'https://origen.enterprise.net.ar/templates/arena/img/white-logo.png',
+    },
+  };
+  
+  const payload = {
+    username: 'MU Level Checker',
+    avatar_url: 'https://origen.enterprise.net.ar/templates/arena/img/white-logo.png',
+    content: '@everyone 🎉 **¡ALGUIEN LLEGÓ A NIVEL 400!** 🎉', // Mención a todos
+    embeds: [embed],
+  };
+  
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    if (!response.ok) {
+      console.error('Error enviando a Discord:', response.status, await response.text());
+    } else {
+      console.log('✅ Notificación de nivel 400 enviada a Discord');
+    }
+  } catch (error) {
+    console.error('Error al enviar a Discord:', error.message);
+  }
+}
+
+/**
+ * Envía un mensaje de error a Discord
+ */
+async function sendDiscordError(webhookUrl, errorMessage) {
+  const embed = {
+    title: '❌ Error en MU Level Checker',
+    description: `**Error:** ${errorMessage}`,
+    color: 0xff0000, // Rojo
+    timestamp: new Date().toISOString(),
+    footer: {
+      text: 'MU Origen Level Checker',
+    },
+  };
+  
+  const payload = {
+    username: 'MU Level Checker',
+    avatar_url: 'https://origen.enterprise.net.ar/templates/arena/img/white-logo.png',
+    embeds: [embed],
+  };
+  
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    console.error('Error al enviar error a Discord:', error.message);
   }
 }

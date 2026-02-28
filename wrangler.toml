@@ -6,7 +6,13 @@ compatibility_date = "2024-01-01"
 [triggers]
 crons = ["*/10 * * * *"]
 
+# KV Storage para guardar el estado previo del personaje
+[[kv_namespaces]]
+binding = "MU_STORAGE"
+id = "placeholder_id"  # Se creará automáticamente con wrangler
+
 # Variables de entorno (configurar con wrangler secret put)
 # Ejecutar estos comandos para configurar:
 # wrangler secret put MU_USERNAME
 # wrangler secret put MU_PASSWORD
+# wrangler secret put DISCORD_WEBHOOK_URL

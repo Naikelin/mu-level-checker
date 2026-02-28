@@ -1,13 +1,20 @@
-# MU Origen Level Checker
+# MU Origen Level Checker - Discord Bot
 
-Cloudflare Worker que consulta automáticamente el nivel de tu personaje en MU Origen cada 10 minutos.
+Bot de Discord que monitorea tu personaje en MU Origen y **envía una notificación especial cuando alcances nivel 400**! 🎉
 
 ## 🚀 Características
 
 - **Serverless**: Corre en Cloudflare Workers (gratis)
 - **Automático**: Se ejecuta cada 10 minutos con cron triggers
+- **Discord Integration**: Envía notificación con @everyone cuando llegas a nivel 400
+- **Smart Detection**: Solo notifica la primera vez que alcanzas nivel 400
 - **Sin servidor**: No necesitas mantener ningún servidor corriendo
-- **Logs**: Ve los resultados en tiempo real con Cloudflare Logs
+
+## 📋 Requisitos previos
+
+1. Cuenta de Cloudflare (gratis)
+2. Servidor de Discord donde tengas permisos de administrador
+3. Node.js instalado en tu computadora
 
 ## 📁 Estructura del proyecto
 
@@ -23,101 +30,163 @@ MU-Automatization/
 
 ## 🛠️ Instalación y configuración
 
-### 1. Instalar dependencias
+### 1. Clonar e instalar dependencias
 
 ```bash
+git clone https://github.com/Naikelin/mu-level-checker.git
+cd mu-level-checker
 npm install
 ```
 
-### 2. Autenticarse con Cloudflare
+### 2. Crear Webhook de Discord
+
+1. Abre Discord y ve a tu servidor
+2. Haz clic derecho en el canal donde quieres las notificaciones
+3. Selecciona **"Editar Canal"**
+4. Ve a **"Integraciones" → "Webhooks"**
+5. Haz clic en **"Crear Webhook"**
+6. Dale un nombre (ejemplo: "MU Level Checker")
+7. **Copia la URL del Webhook** (algo como: `https://discord.com/api/webhooks/123456789/abc...`)
+8. Guarda los cambios
+
+### 3. Configurar variables locales para testing
+
+Edita el archivo `.dev.vars` y agrega tu webhook:
 
 ```bash
-npx wrangler login
-```
-
-Esto abrirá tu navegador para autenticarte con tu cuenta de Cloudflare.
-
-### 3. Configurar credenciales
-
-Las credenciales se guardan como **secrets** encriptados en Cloudflare:
-
-```bash
-npx wrangler secret put MU_USERNAME
-# Cuando te pregunte, ingresa tu usuario: naikelin
-
-npx wrangler secret put MU_PASSWORD
-# Cuando te pregunte, ingresa tu contraseña
+MU_USERNAME=tu_usuario
+MU_PASSWORD=tu_contraseña
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/TU_WEBHOOK_AQUI
 ```
 
 ### 4. Probar localmente
 
 ```bash
-npm test
+npm run test:discord
 ```
 
-O ejecuta el worker en modo desarrollo:
+Esto enviará una notificación de prueba a Discord para verificar que todo funciona.
+
+### 5. Autenticarse con Cloudflare
 
 ```bash
-npm run dev
+npx wrangler login
 ```
 
-Luego visita http://localhost:8787 en tu navegador para ver el resultado.
+### 6. Crear KV Storage
 
-### 5. Desplegar a producción
+El bot necesita KV Storage para recordar si ya envió la notificación de nivel 400:
+
+```bash
+npx wrangler kv:namespace create MU_STORAGE
+```
+
+Copia el `id` que te da y reemplázalo en `wrangler.toml`:
+
+```toml
+[[kv_namespaces]]
+binding = "MU_STORAGE"
+id = "tu_id_aqui"  # Reemplaza con el ID que te dio el comando anterior
+```
+
+### 7. Configurar secrets en Cloudflare
+
+```bash
+npx wrangler secret put MU_USERNAME
+# Ingresa tu usuario
+
+npx wrangler secret put MU_PASSWORD
+# Ingresa tu contraseña
+
+npx wrangler secret put DISCORD_WEBHOOK_URL
+# Pega la URL del webhook de Discord
+```
+
+### 8. Desplegar a producción
 
 ```bash
 npm run deploy
 ```
 
-¡Listo! El worker se ejecutará automáticamente cada 10 minutos.
+¡Listo! El bot se ejecutará automáticamente cada 10 minutos y te notificará cuando alcances nivel 400.
 
-## 📊 Ver logs en tiempo real
+## 🎮 ¿Cómo funciona?
 
-Una vez desplegado, puedes ver los logs en tiempo real:
+1. **Cada 10 minutos** el bot hace login en MU Origen
+2. **Consulta** el nivel de tu personaje
+3. **Compara** con el nivel anterior guardado en KV Storage
+4. **Si alcanzaste nivel 400** (y es la primera vez):
+   - 🎉 Envía un mensaje especial a Discord
+   - 📢 Menciona @everyone en el canal
+   - 🏆 Muestra tu personaje, nivel, resets y zen
 
-```bash
-npm run tail
+## 📊 Ejemplo de notificación en Discord
+
+Cuando alcances nivel 400, recibirás un mensaje como este:
+
+```
+@everyone 🎉 ¡ALGUIEN LLEGÓ A NIVEL 400! 🎉
+
+🎉🎊 ¡NIVEL 400 ALCANZADO! 🎊🎉
+Antiferna ha llegado al nivel 400!
+
+¡Felicitaciones por este increíble logro! 🏆
+
+👤 Personaje: Antiferna
+⚡ Nivel: 400 ✨
+🔄 Master Resets: 92
+💰 Zen: 1,400,881,387
 ```
 
-También puedes ver los logs en el Dashboard de Cloudflare:
-- Ir a **Workers & Pages** → tu worker → **Logs**
-
-## 📝 Ejemplo de respuesta
-
-```json
-{
-  "success": true,
-  "character": "Antiferna",
-  "level": 196,
-  "master_resets": 92,
-  "zen": "1,400,881,387",
-  "timestamp": "2026-02-28T21:36:50.217Z"
-}
-```
-
-## 🔧 Comandos disponibles
+## 📝 Scripts disponibles
 
 | Comando | Descripción |
 |---------|-------------|
-| `npm test` | Prueba el worker localmente con Node.js |
+| `npm test` | Prueba el checker localmente (sin Discord) |
+| `npm run test:discord` | Prueba el envío a Discord |
 | `npm run dev` | Ejecuta el worker en modo desarrollo |
 | `npm run deploy` | Despliega a producción |
 | `npm run tail` | Ver logs en tiempo real |
 
-## ⏱️ Configuración del cron
+## ⚙️ Configuración avanzada
 
-El worker está configurado para ejecutarse cada 10 minutos. Puedes cambiar esto en `wrangler.toml`:
+### Cambiar el nivel de notificación
+
+Si quieres recibir notificaciones en un nivel diferente (por ejemplo, nivel 350), edita `worker.js`:
+
+```javascript
+// Busca esta línea:
+if (result.level >= 400) {
+
+// Y cámbiala por:
+if (result.level >= 350) {
+```
+
+### Cambiar la frecuencia de chequeo
+
+Para cambiar cada cuánto tiempo se ejecuta el bot, edita `wrangler.toml`:
 
 ```toml
 [triggers]
 crons = ["*/10 * * * *"]  # Cada 10 minutos
 ```
 
-Otros ejemplos de cron:
+Otros ejemplos:
 - `*/5 * * * *` - Cada 5 minutos
 - `*/15 * * * *` - Cada 15 minutos
 - `0 * * * *` - Cada hora
-- `0 */2 * * *` - Cada 2 horas
+
+### Testear con tu nivel actual
+
+Si quieres probar que el bot funciona antes de llegar a nivel 400, puedes forzar el envío:
+
+```bash
+# En local:
+npm run test:discord
+
+# O hacer una petición HTTP al worker desplegado:
+curl "https://mu-level-checker.TU-SUBDOMAIN.workers.dev/?force=true"
+```
 
 ## 🔒 Seguridad
 
@@ -146,17 +215,25 @@ Ideas para extender la funcionalidad:
 
 ## 🆘 Troubleshooting
 
+**Error: "DISCORD_WEBHOOK_URL no está configurado"**
+- Asegúrate de haber creado el webhook en Discord
+- Verifica que copiaste la URL completa
+- Para testing local, edita `.dev.vars`
+- Para producción, usa `wrangler secret put DISCORD_WEBHOOK_URL`
+
+**No recibo notificaciones en Discord**
+- Verifica que el webhook esté activo en Discord
+- Revisa los logs con `npm run tail`
+- Prueba manualmente con `npm run test:discord`
+- Asegúrate de que tu personaje esté en nivel 400 o superior
+
+**El bot envía notificaciones duplicadas**
+- Esto no debería pasar gracias al KV Storage
+- Verifica que el KV Storage esté configurado correctamente en `wrangler.toml`
+
 **Error: "No se recibió cookie de sesión"**
 - Verifica que las credenciales sean correctas
-- Asegúrate de haber configurado los secrets con `wrangler secret put`
-
-**Error: "La sesión no está autenticada"**
-- Puede ser un problema temporal del servidor
-- El worker reintentará en 10 minutos automáticamente
-
-**No veo los logs**
-- Usa `npm run tail` para ver logs en tiempo real
-- O revisa el Dashboard de Cloudflare → Workers → Logs
+- Puede ser un problema temporal del servidor MU Origen
 
 ## 📄 Licencia
 
