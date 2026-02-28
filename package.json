@@ -1,6 +1,7 @@
 {
   "name": "mu-automatization",
   "version": "1.0.0",
+  "type": "module",
   "description": "Cloudflare Worker que consulta automáticamente el nivel de tu personaje en MU Origen cada 10 minutos",
   "main": "worker.js",
   "scripts": {
@@ -8,12 +9,22 @@
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
     "test": "node test-worker.js",
-    "test:discord": "node test-discord.js"
+    "test:discord": "node test-discord.js",
+    "test:no-progress": "node test-no-progress.js"
   },
-  "keywords": ["cloudflare", "worker", "mu-origen", "automation", "cron"],
+  "keywords": [
+    "cloudflare",
+    "worker",
+    "mu-origen",
+    "automation",
+    "cron"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "wrangler": "^4.69.0"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1"
   }
 }

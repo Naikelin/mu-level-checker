@@ -39,11 +39,11 @@ export default {
     if (result.success) {
       console.log(`✅ Personaje: ${result.character}, Nivel: ${result.level}, Master Resets: ${result.master_resets}`);
       
+      // Obtener el estado previo del personaje
+      const previousData = await env.MU_STORAGE?.get('character_data', { type: 'json' });
+      
       // Verificar si el personaje llegó a nivel 400
       if (result.level >= 400) {
-        // Obtener el estado previo para ver si ya enviamos la notificación
-        const previousData = await env.MU_STORAGE?.get('character_data', { type: 'json' });
-        
         // Solo enviar si es la primera vez que alcanza nivel 400 o más
         // o si el nivel previo era menor a 400
         if (!previousData || previousData.level < 400) {
@@ -51,6 +51,24 @@ export default {
             await sendDiscordLevel400Notification(env.DISCORD_WEBHOOK_URL, result);
             console.log('🎉 ¡Notificación de nivel 400 enviada a Discord!');
           }
+        }
+      } else {
+        // Si el nivel es menor a 400, verificar si hay progreso
+        if (previousData && previousData.level === result.level) {
+          // No hubo progreso desde la última ejecución
+          if (env.DISCORD_WEBHOOK_URL) {
+            await sendDiscordNoProgressAlert(
+              env.DISCORD_WEBHOOK_URL, 
+              result, 
+              previousData,
+              env.DISCORD_USER_ID,
+              env.DISCORD_USERNAME
+            );
+            console.log('⚠️ Alerta de sin progreso enviada a Discord');
+          }
+        } else if (previousData && previousData.level !== result.level) {
+          // Hubo progreso
+          console.log(`📈 Progreso detectado: ${previousData.level} → ${result.level}`);
         }
       }
       
@@ -253,6 +271,98 @@ async function sendDiscordLevel400Notification(webhookUrl, data) {
     }
   } catch (error) {
     console.error('Error al enviar a Discord:', error.message);
+  }
+}
+
+/**
+ * Envía una alerta a Discord cuando no hay progreso de nivel (< 400)
+ */
+async function sendDiscordNoProgressAlert(webhookUrl, currentData, previousData, discordUserId, discordUsername) {
+  // Construir la mención del usuario
+  let userMention = '';
+  if (discordUserId) {
+    // Si tenemos el ID, usar mención directa (formato <@ID>)
+    userMention = `<@${discordUserId}>`;
+  } else if (discordUsername) {
+    // Si solo tenemos username, mencionarlo sin garantía
+    userMention = `@${discordUsername}`;
+  }
+  
+  const embed = {
+    title: '⚠️ Sin Progreso de Nivel',
+    description: `**${currentData.character}** no ha subido de nivel desde la última verificación.\n\n` +
+                 `El personaje sigue en nivel **${currentData.level}** (necesita llegar a 400).`,
+    color: 0xFFA500, // Naranja
+    fields: [
+      {
+        name: '👤 Personaje',
+        value: currentData.character,
+        inline: true,
+      },
+      {
+        name: '⚡ Nivel Actual',
+        value: `${currentData.level}`,
+        inline: true,
+      },
+      {
+        name: '🎯 Nivel Objetivo',
+        value: '400',
+        inline: true,
+      },
+      {
+        name: '🔄 Master Resets',
+        value: `${currentData.master_resets}`,
+        inline: true,
+      },
+      {
+        name: '💰 Zen',
+        value: currentData.zen,
+        inline: true,
+      },
+      {
+        name: '📊 Progreso',
+        value: `${Math.round((currentData.level / 400) * 100)}%`,
+        inline: true,
+      },
+      {
+        name: '⏰ Última Verificación',
+        value: `<t:${Math.floor(new Date(previousData.timestamp).getTime() / 1000)}:R>`,
+        inline: false,
+      },
+    ],
+    thumbnail: {
+      url: 'https://origen.enterprise.net.ar/templates/arena/img/white-logo.png',
+    },
+    timestamp: currentData.timestamp,
+    footer: {
+      text: 'MU Origen Level Checker',
+      icon_url: 'https://origen.enterprise.net.ar/templates/arena/img/white-logo.png',
+    },
+  };
+  
+  const payload = {
+    username: 'MU Level Checker',
+    avatar_url: 'https://origen.enterprise.net.ar/templates/arena/img/white-logo.png',
+    content: `⚠️ ${userMention} **Alerta:** El personaje no ha subido de nivel`,
+    embeds: [embed],
+  };
+  
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    if (!response.ok) {
+      console.error('Error enviando alerta a Discord:', response.status, await response.text());
+    } else {
+      console.log('✅ Alerta de sin progreso enviada a Discord');
+    }
+  } catch (error) {
+    console.error('Error al enviar alerta a Discord:', error.message);
   }
 }
 

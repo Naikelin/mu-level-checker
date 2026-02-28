@@ -16,3 +16,5 @@ id = "1950a2b58d3342ee916dfd3a30e40822"
 # wrangler secret put MU_USERNAME
 # wrangler secret put MU_PASSWORD
 # wrangler secret put DISCORD_WEBHOOK_URL
+# wrangler secret put DISCORD_USER_ID     (opcional - ID numérico de Discord)
+# wrangler secret put DISCORD_USERNAME    (opcional - username de Discord)
